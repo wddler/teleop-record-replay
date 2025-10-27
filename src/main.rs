@@ -1,5 +1,8 @@
 use eframe::egui;
+use serde::Deserialize;
+use std::fs;
 use std::process::{Child, Command};
+use std::sync::Arc;
 
 /// Enum to represent the different types of processes we can run.
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -9,19 +12,52 @@ enum ProcessType {
     Replay,
 }
 
+/// Struct to hold the command strings from config.toml.
+#[derive(Deserialize, Clone)]
+struct Commands {
+    prefix: String,
+    teleoperation: String,
+    record: String,
+    replay: String,
+}
+
+/// Struct to represent the overall configuration.
+#[derive(Deserialize, Clone)]
+struct Config {
+    commands: Commands,
+}
+
 /// Holds the application state.
 struct MyApp {
+    /// The loaded configuration, wrapped in an Arc for efficient sharing.
+    config: Result<Arc<Config>, String>,
     /// The currently running child process, if any.
     /// We use an Option to represent that a process might not be running.
     /// The tuple stores the process handle and its type.
     child_process: Option<(Child, ProcessType)>,
 }
 
-impl Default for MyApp {
-    fn default() -> Self {
+impl MyApp {
+    /// Creates a new instance of the application, loading the configuration.
+    fn new() -> Self {
+        let config = Self::load_config().map(Arc::new);
         Self {
+            config,
             child_process: None,
         }
+    }
+
+    /// Loads configuration from `config.toml`.
+    fn load_config() -> Result<Config, String> {
+        let config_str = fs::read_to_string("config.toml")
+            .map_err(|e| format!("Failed to read config.toml: {}", e))?;
+        toml::from_str(&config_str).map_err(|e| format!("Failed to parse config.toml: {}", e))
+    }
+}
+
+impl Default for MyApp {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -29,26 +65,29 @@ impl MyApp {
     /// Spawns a process in a new terminal window.
     fn spawn_process(&mut self, process_type: ProcessType) {
         // If a process is already running, do nothing.
-        if self.child_process.is_some() {
+        if self.child_process.is_some() || self.config.is_err() {
             return;
         }
+        let config = self.config.as_ref().unwrap().clone();
 
-        // Define the command to be executed for each process type.
-        // These are example commands; you can replace them with your actual commands.
-        let command_str = match process_type {
-            ProcessType::Teleoperation => "echo 'Starting Teleoperation...'; sleep 10; echo 'Teleop finished.'",
-            ProcessType::Record => "echo 'Starting Record...'; sleep 10; echo 'Record finished.'",
-            ProcessType::Replay => "echo 'Starting Replay...'; sleep 10; echo 'Replay finished.'",
+        // Get the specific command for the process type from the loaded config.
+        let specific_command = match process_type {
+            ProcessType::Teleoperation => &config.commands.teleoperation,
+            ProcessType::Record => &config.commands.record,
+            ProcessType::Replay => &config.commands.replay,
         };
+
+        // Combine the prefix and the specific command.
+        let full_command = format!("{} && {}", config.commands.prefix, specific_command);
 
         // This command is for Linux systems with xterm.
         // You might need to change 'xterm' to your terminal emulator of choice (e.g., 'gnome-terminal').
         // For other OSes:
         // - macOS: "osascript", "-e", &format!("tell app \"Terminal\" to do script \"{}\"", command_str)
         // - Windows: "cmd", "/C", &format!("start {}", command_str)
-        let child = Command::new("konsole")
+        let child = Command::new("xterm")
             .arg("-e")
-            .arg(format!("bash -c '{}'", command_str))
+            .arg(format!("bash -c '{}'", full_command))
             .spawn();
 
         match child {
@@ -80,6 +119,12 @@ impl eframe::App for MyApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Teleop Record Replay");
             ui.separator();
+
+            // Display an error message if the configuration failed to load.
+            if let Err(e) = &self.config {
+                ui.colored_label(egui::Color32::RED, e);
+                return;
+            }
 
             if let Some((child, process_type)) = &mut self.child_process {
                 // Check if the process has finished.
@@ -118,6 +163,6 @@ fn main() -> Result<(), eframe::Error> {
     eframe::run_native(
         "Teleop Record Replay",
         options,
-        Box::new(|_cc| Box::<MyApp>::default()),
+        Box::new(|_cc| Box::new(MyApp::new())),
     )
 }

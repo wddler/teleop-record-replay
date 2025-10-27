@@ -1,7 +1,10 @@
 [package]
 name = "teleop-record-replay"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [dependencies]
 eframe = "0.27.2"
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.8"
+

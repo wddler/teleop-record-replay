@@ -1,0 +1,48 @@
+# Configuration for the Teleop-Record-Replay application
+
+[commands]
+# Common prefix for all commands.
+# This will be executed before the specific command for each action.
+# IMPORTANT: Replace "/path/to/your/lerobot/project" with the actual path to your lerobot directory.
+prefix = "cd /path/to/your/lerobot/project && conda activate lerobot"
+
+# Specific command for teleoperation
+teleoperation = """
+lerobot-teleoperate \
+--robot.type=bi_so100_follower \
+--robot.left_arm_port=/dev/ttyACM1 \
+--robot.right_arm_port=/dev/ttyACM3 \
+--robot.id=bimanual_follower \
+--teleop.type=bi_so100_leader \
+--teleop.left_arm_port=/dev/ttyACM0 \
+--teleop.right_arm_port=/dev/ttyACM2 \
+--teleop.id=bimanual_leader
+"""
+
+# Specific command for recording
+record = """
+lerobot-record \
+  --robot.type=bi_so100_follower \
+  --robot.left_arm_port=/dev/ttyACM1 \
+  --robot.right_arm_port=/dev/ttyACM3 \
+  --robot.id=bimanual_follower \
+  --teleop.type=bi_so100_leader \
+  --teleop.left_arm_port=/dev/ttyACM0 \
+  --teleop.right_arm_port=/dev/ttyACM2 \
+  --teleop.id=bimanual_leader \
+  --display_data=false \
+  --dataset.repo_id=robohouse/demo \
+  --dataset.single_task="demo" \
+  --dataset.push_to_hub=False
+"""
+
+# Specific command for replaying
+replay = """
+lerobot-replay \
+  --robot.type=bi_so100_follower \
+  --robot.left_arm_port=/dev/ttyACM1 \
+  --robot.right_arm_port=/dev/ttyACM3 \
+  --robot.id=bimanual_follower \
+  --dataset.repo_id=robohouse/demo \
+  --dataset.episode=0
+"""
