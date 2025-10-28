@@ -21,9 +21,21 @@ struct Commands {
     replay: String,
 }
 
+/// Struct for application-level settings from config.toml.
+#[derive(Deserialize, Clone, Default)]
+struct AppConfig {
+    /// The terminal emulator to use.
+    /// We use an Option so we can default if it's missing from the TOML file.
+    #[serde(default)]
+    terminal: Option<String>,
+}
+
 /// Struct to represent the overall configuration.
 #[derive(Deserialize, Clone)]
 struct Config {
+    /// We use `serde(default)` so the app doesn't crash if the `[app]` table is missing.
+    #[serde(default)]
+    app: AppConfig,
     commands: Commands,
 }
 
@@ -85,7 +97,13 @@ impl MyApp {
         // For other OSes:
         // - macOS: "osascript", "-e", &format!("tell app \"Terminal\" to do script \"{}\"", command_str)
         // - Windows: "cmd", "/C", &format!("start {}", command_str)
-        let child = Command::new("xterm")
+        // Use the terminal from config, or default to "konsole".
+        let terminal = config
+            .app
+            .terminal
+            .as_deref()
+            .unwrap_or("konsole");
+        let child = Command::new(terminal)
             .arg("-e")
             .arg(format!("bash -c '{}'", full_command))
             .spawn();

@@ -1,10 +1,15 @@
 # Configuration for the Teleop-Record-Replay application
 
+[app]
+# The terminal emulator to use. Examples: "xterm", "gnome-terminal", "konsole".
+# If not specified, "konsole" will be used as a default.
+terminal = "konsole"
+
 [commands]
 # Common prefix for all commands.
 # This will be executed before the specific command for each action.
 # IMPORTANT: Replace "/path/to/your/lerobot/project" with the actual path to your lerobot directory.
-prefix = "cd /path/to/your/lerobot/project && conda activate lerobot"
+prefix = "conda init && cd /home/$USER/lerobot && conda activate lerobot"
 
 # Specific command for teleoperation
 teleoperation = """
