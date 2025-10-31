@@ -2,3 +2,5 @@
 
 
 cargo run -- --config config.toml
+
+![GUI](/screenshot.png "GUI")
