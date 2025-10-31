@@ -120,18 +120,20 @@ impl MyApp {
             .unwrap_or("konsole");
         debug!("Using terminal: '{}'", terminal);
 
-        // To ensure the terminal stays open for inspection, we wrap the entire command
-        // in a subshell `(...)`. After the command runs (whether it succeeds or fails),
-        // we print a message and use `read` to wait for the user to press Enter.
-        // This is more reliable than `sleep` across different terminal emulators.
+        // We use the `script` command to create a pseudo-terminal (pty). This forces
+        // the child process (and its children, like the python scripts) to use
+        // line-buffering instead of block-buffering, so we can see the output in real-time.
+        // -q: quiet mode, don't print start/done messages.
+        // -c: command to run.
+        // /dev/null: we discard the typescript file, as we only care about the real-time output to the terminal.
         let final_shell_command = format!(
-            "({}); echo -e \"\\n\\n[INFO] Command finished. Press Enter to close this terminal.\"; read",
+            "script -q -c \"{}\" /dev/null; echo -e \"\\n\\n[INFO] Command finished. Press Enter to close this terminal.\"; read",
             full_command
         );
         debug!("Final shell command: '{}'", final_shell_command);
         let child = Command::new(terminal)
-            .arg("-e")
-            .arg(format!("bash -ic '{}'", final_shell_command))
+            .arg("-e") // Argument for many terminals to execute a command
+            .arg(format!("bash -c '{}'", final_shell_command))
             .spawn();
 
         match child {
@@ -190,16 +192,45 @@ impl eframe::App for MyApp {
                     }
                 }
             } else {
-                // No process is running, show the main buttons.
-                if ui.button("Teleoperation").clicked() {
-                    self.spawn_process(ProcessType::Teleoperation);
-                }
-                if ui.button("Record").clicked() {
-                    self.spawn_process(ProcessType::Record);
-                }
-                if ui.button("Replay").clicked() {
-                    self.spawn_process(ProcessType::Replay);
-                }
+                // No process is running, show the main buttons. We'll use a vertical layout
+                // and add some spacing to make the UI look clean.
+                ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
+                    ui.add_space(20.0); // Add some space from the top separator
+
+                    // Define a larger font and size for the buttons
+                    let button_font = egui::FontId::proportional(20.0);
+                    let button_size = egui::vec2(220.0, 50.0);
+
+                    // --- Teleoperation Button ---
+                    let teleop_button = egui::Button::new(
+                        egui::RichText::new("Teleoperation").font(button_font.clone()),
+                    )
+                    .min_size(button_size);
+
+                    if ui.add(teleop_button).clicked() {
+                        self.spawn_process(ProcessType::Teleoperation);
+                    }
+                    ui.add_space(15.0); // Spacing between buttons
+
+                    // --- Record Button ---
+                    let record_button =
+                        egui::Button::new(egui::RichText::new("Record").font(button_font.clone()))
+                            .min_size(button_size);
+
+                    if ui.add(record_button).clicked() {
+                        self.spawn_process(ProcessType::Record);
+                    }
+                    ui.add_space(15.0); // Spacing between buttons
+
+                    // --- Replay Button ---
+                    let replay_button =
+                        egui::Button::new(egui::RichText::new("Replay").font(button_font))
+                            .min_size(button_size);
+
+                    if ui.add(replay_button).clicked() {
+                        self.spawn_process(ProcessType::Replay);
+                    }
+                });
             }
         });
     }
@@ -225,7 +256,31 @@ fn main() -> Result<(), eframe::Error> {
     eframe::run_native(
         "Teleop Record Replay",
         options,
-        Box::new(move |_cc| {
+        Box::new(move |cc| {
+            // --- Style Customization ---
+            // Get a copy of the default style
+            let mut style = (*cc.egui_ctx.style()).clone();
+
+            // Get a mutable reference to the visuals
+            let visuals = &mut style.visuals;
+
+            // Make buttons have a larger padding and rounding
+            style.spacing.button_padding = egui::vec2(10.0, 5.0);
+            let rounding = egui::Rounding::from(12.0);
+
+            // Customize the visuals for different widget states
+            visuals.widgets.inactive.rounding = rounding;
+            visuals.widgets.inactive.bg_fill = egui::Color32::from_gray(40); // Darker background
+
+            visuals.widgets.hovered.rounding = rounding;
+            visuals.widgets.hovered.bg_fill = egui::Color32::from_gray(60); // Lighter on hover
+
+            visuals.widgets.active.rounding = rounding;
+            visuals.widgets.active.bg_fill = egui::Color32::from_gray(80); // Even lighter when active
+
+            // Apply the new style
+            cc.egui_ctx.set_style(style);
+
             Box::new(MyApp::new(args.config))
         }),
     )
