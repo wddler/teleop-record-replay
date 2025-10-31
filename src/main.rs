@@ -32,6 +32,9 @@ struct AppConfig {
     /// We use an Option so we can default if it's missing from the TOML file.
     #[serde(default)]
     terminal: Option<String>,
+    /// Path to the conda installation directory.
+    #[serde(default)]
+    conda_path: Option<String>,
 }
 
 /// Struct to represent the overall configuration.
@@ -106,7 +109,20 @@ impl MyApp {
             specific_command.to_string()
         };
 
-        debug!("Full command to execute: '{}'", full_command);
+        // Construct a shell-script that first sources conda, then runs the command.
+        // This is the most reliable way to ensure the 'conda' command is available.
+        let conda_init_command = if let Some(conda_path) = &config.app.conda_path {
+            if !conda_path.is_empty() {
+                format!("source {}/etc/profile.d/conda.sh && ", conda_path)
+            } else {
+                "".to_string()
+            }
+        } else {
+            "".to_string()
+        };
+
+        let command_with_conda_init = format!("{}{}", conda_init_command, full_command);
+        debug!("Command with conda init: '{}'", command_with_conda_init);
         // This command is for Linux systems with xterm.
         // You might need to change 'xterm' to your terminal emulator of choice (e.g., 'gnome-terminal').
         // For other OSes:
@@ -119,21 +135,19 @@ impl MyApp {
             .as_deref()
             .unwrap_or("konsole");
         debug!("Using terminal: '{}'", terminal);
-
-        // We use the `script` command to create a pseudo-terminal (pty). This forces
-        // the child process (and its children, like the python scripts) to use
-        // line-buffering instead of block-buffering, so we can see the output in real-time.
-        // -q: quiet mode, don't print start/done messages.
-        // -c: command to run.
-        // /dev/null: we discard the typescript file, as we only care about the real-time output to the terminal.
+ 
+        // To ensure the terminal is interactive and stays open, we construct a command for `bash -ic`.
+        // - The `-i` flag makes the shell interactive, which helps with real-time output and sourcing profiles.
+        // - The command is wrapped in a subshell `(...)` to ensure that `read` executes even if the main command fails.
+        // - `read` waits for user input (Enter key) before closing the terminal.
         let final_shell_command = format!(
-            "script -q -c \"{}\" /dev/null; echo -e \"\\n\\n[INFO] Command finished. Press Enter to close this terminal.\"; read",
-            full_command
+            "({}); echo -e \"\\n\\n[INFO] Command finished. Press Enter to close this terminal.\"; read",
+            command_with_conda_init
         );
         debug!("Final shell command: '{}'", final_shell_command);
         let child = Command::new(terminal)
-            .arg("-e") // Argument for many terminals to execute a command
-            .arg(format!("bash -c '{}'", final_shell_command))
+            .arg("-e")
+            .arg(format!("bash -ic '{}'", final_shell_command))
             .spawn();
 
         match child {
