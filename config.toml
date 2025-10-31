@@ -7,7 +7,7 @@ terminal = "konsole"
 # Path to the base of the conda installation (e.g., anaconda3, miniconda3).
 # This is needed to correctly initialize conda in the new shell.
 # IMPORTANT: The user on the new machine MUST update this path.
-conda_path = "/home/denis/miniconda3" # or /home/user/anaconda3
+conda_path = "/home/$USER/miniconda3" # or /home/user/anaconda3
 
 [commands]
 # We use `conda run` to reliably execute commands within the 'lerobot' environment.
